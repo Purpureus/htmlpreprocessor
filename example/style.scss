@@ -1,0 +1,35 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+}
+
+html {
+    font-family: 'Segoe UI', 'Calibri', sans-serif;
+}
+
+body {
+    background: #333;
+    color: #f4f4f4;
+    width: 100%;
+    max-width: 768px;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#game-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-gap: 15px;
+}
+
+.game-card {
+    background: #fff1;
+    width: 180px;
+    height: 240px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}

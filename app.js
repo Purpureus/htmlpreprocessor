@@ -20,6 +20,10 @@ function replaceSlice(string, start, end, contents) {
 		contents + string.substring(end)
 }
 
+function importModule(filename, args = []) {
+	return `Imported file ${filename} with args ${args}`
+}
+
 const args = process.argv.slice(2)
 
 if (!args[0]) {
@@ -39,79 +43,103 @@ if (inputData) {
 	const originalFile = inputData
 	let newFile = originalFile
 
-	let foundImport = true
-	while (foundImport) {
-		const importStart = newFile.indexOf(`$[`)
-		let importEnd = 0
-		if (importStart < 0) break
+	let foundExpression = true
+	while (foundExpression) {
+		const expressionStart = newFile.indexOf(`$(`)
+		let expressionEnd = 0
+		if (expressionStart < 0) break
 
-		let bracketDepth = 1
-		for (let cursor = importStart + 2;
+		let parenDepth = 1
+		for (let cursor = expressionStart + 2;
 			cursor < newFile.length;
 			cursor++) {
-			if (newFile[cursor] === '[') bracketDepth++
-			if (newFile[cursor] === ']') bracketDepth--
-			if (bracketDepth === 0) {
-				importEnd = cursor + 1
+			if (newFile[cursor] === '(') parenDepth++
+			if (newFile[cursor] === ')') parenDepth--
+			if (parenDepth === 0) {
+				expressionEnd = cursor + 1
 				break
 			}
 		}
 
-		let moduleImport = null
-		try {
-			moduleImport = JSON.parse(newFile.slice(importStart + 1, importEnd))
-		}
-		catch (error) {
-			print(`Module import failed: Invalid JSON.`)
-			newFile = cutSlice(newFile, importStart, importEnd)
-			continue
+		const expression = newFile.slice(expressionStart + 2, expressionEnd - 1)
+		const expressionType = expression.match(/[^\s]+/)[0]
+
+		switch (expressionType) {
+			case 'IMP':
+
+				// Extract filename from expression
+				let filename = ""
+				let capturing = false
+				for (let charIndex = expressionType.length;
+					charIndex < expression.length;
+					charIndex++) {
+
+					const currentChar = expression[charIndex]
+					if (currentChar === '"') {
+						if (!capturing) {
+							capturing = true
+						}
+						else {
+							capturing = false
+							break
+						}
+					}
+					else {
+						if (!capturing) continue
+						filename = `${filename}${currentChar}`
+					}
+				}
+
+				filename = filename.trim()
+
+				if (!filename) {
+					error(`No filename provided`)
+					newFile = cutSlice(newFile, expressionStart, expressionEnd)
+					continue
+				}
+				if (!fs.existsSync(filename)) {
+					error(`File doesn't exist: ${filename}`)
+					newFile = cutSlice(newFile, expressionStart, expressionEnd)
+					continue
+				}
+
+				const importedFile = importModule(filename)
+				newFile = replaceSlice(newFile, expressionStart, expressionEnd, importedFile)
+
+				break
+			default:
+				error(`Unrecognized expression: ${expression}`)
 		}
 
-		const filename = moduleImport[0]
-		if (!filename) {
-			print(`No filename provided`)
-			newFile = cutSlice(newFile, importStart, importEnd)
-			continue
-		}
-
-		// Check if requested file exists
-		if (!fs.existsSync(filename)) {
-			warn(`File doesn't exist`)
-			newFile = cutSlice(newFile, importStart, importEnd)
-			continue
-		}
-
-		const variables = moduleImport[1]
-		let importedFile = fs.readFileSync(filename, 'utf8')
+		// const variables = moduleImport[1]
+		// let importedFile = fs.readFileSync(filename, 'utf8')
 
 		// Traverse imported file and replace variables
-		let foundVariable = true
-		while (foundVariable) {
-			const variableStart = importedFile.indexOf('$(')
-			if (variableStart < 0) break
-			let variableEnd = 0
+		// let foundVariable = true
+		// while (foundVariable) {
+		// 	const variableStart = importedFile.indexOf('$(')
+		// 	if (variableStart < 0) break
+		// 	let variableEnd = 0
 
-			let parenDepth = 1
-			for (let cursor = variableStart + 2;
-				cursor < newFile.length;
-				cursor++) {
-				if (importedFile[cursor] === '(') parenDepth++
-				if (importedFile[cursor] === ')') parenDepth--
-				if (parenDepth === 0) {
-					variableEnd = cursor + 1
-					break
-				}
-			}
+		// 	let parenDepth = 1
+		// 	for (let cursor = variableStart + 2;
+		// 		cursor < newFile.length;
+		// 		cursor++) {
+		// 		if (importedFile[cursor] === '(') parenDepth++
+		// 		if (importedFile[cursor] === ')') parenDepth--
+		// 		if (parenDepth === 0) {
+		// 			variableEnd = cursor + 1
+		// 			break
+		// 		}
+		// 	}
 
-			if (variables) {
-				importedFile = replaceSlice(importedFile, variableStart, variableEnd, variables[importedFile.slice(variableStart + 2, variableEnd - 1)])
-			}
-			else {
-				importedFile = replaceSlice(importedFile, variableStart, variableEnd, `<!-- PHTML variable ${importedFile.substring(variableStart + 2, variableEnd - 1)} not found on file:  -->`)
-			}
-		}
-
-		newFile = replaceSlice(newFile, importStart, importEnd, importedFile)
+		// 	if (variables) {
+		// 		importedFile = replaceSlice(importedFile, variableStart, variableEnd, variables[importedFile.slice(variableStart + 2, variableEnd - 1)])
+		// 	}
+		// 	else {
+		// 		importedFile = replaceSlice(importedFile, variableStart, variableEnd, `<!-- PHTML variable ${importedFile.substring(variableStart + 2, variableEnd - 1)} not found on file:  -->`)
+		// 	}
+		// }
 	}
 
 	fs.writeFile(outputFile, newFile, (err) => {
@@ -119,5 +147,5 @@ if (inputData) {
 	})
 }
 else {
-	print(`Input file is empty.`)
+	error(`Input file is empty.`)
 }

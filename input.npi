@@ -1,6 +1,1 @@
-$["header.npi", {
-    "SiteTitle": "Generic Blog",
-    "SiteDescription": "This blog is better than most blogs! It's empty!"
-}]
-
-$["footer.npi"]
+$(IMP "header.npi")
